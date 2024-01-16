@@ -44,7 +44,7 @@ def load_data(data_folder):
 def train():
     # load data
     (train_images, train_labels), (test_images, test_labels) = load_data(
-        '/home/jovyan/fashion-mnist/data/fashion')
+        '/home/jovyan/data/data/fashion')
 
     # scale the values to 0.0 to 1.0
     train_images = train_images / 255.0
@@ -76,7 +76,7 @@ def train():
 
     export_path = os.path.join('/home/jovyan/model')
 
-    logdir = "/home/jovyan/train/logs/"
+    logdir = "/home/jovyan/model/train/logs/"
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
     checkpoint_path = export_path + "cp.ckpt"
     cp_callback = tf.keras.callbacks.ModelCheckpoint(
