@@ -7,7 +7,7 @@ metadata:
     baize.io/description: ""
   labels:
     jobs.baize.io/training-mode: DISTRIBUTED
-    kueue.x-k8s.io/queue-name: p4-gpu # update queue name
+    kueue.x-k8s.io/queue-name: default # update queue name
 spec:
   paddleReplicaSpecs:
     Worker:
