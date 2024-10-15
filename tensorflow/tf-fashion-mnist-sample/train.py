@@ -1,6 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+## if use Nvidia GPU
+# pip install tensorflow[and-cuda]
+
+## without gpu, default
+# pip install tensorflow
+
 import tensorflow as tf
 import numpy as np
 import os
@@ -74,11 +80,11 @@ def train():
                   loss='sparse_categorical_crossentropy',
                   metrics=['accuracy'])
 
-    export_path = os.path.join('/home/jovyan/model')
+    export_path = os.path.join('/home/jovyan/model', 'model.keras')
 
     logdir = "/home/jovyan/model/train/logs/"
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
-    checkpoint_path = export_path + "cp.ckpt"
+    checkpoint_path = export_path + ".weights.h5"
     cp_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_path, save_weights_only=True, verbose=1)
 
@@ -99,9 +105,9 @@ def train():
         export_path,
         overwrite=True,
         include_optimizer=True,
-        save_format=None,
-        signatures=None,
-        options=None
+        # save_format=None,
+        # signatures=None,
+        # options=None
     )
 
     print("Model exported to: {}".format(export_path))
