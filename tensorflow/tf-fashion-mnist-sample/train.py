@@ -7,15 +7,20 @@
 # without gpu, default
 # pip install tensorflow
 
+from zipfile import ZipFile
 import tensorflow as tf
 import numpy as np
 import os
+import requests
+from io import BytesIO
+import zipfile
 import gzip
 from tensorflow import keras
 
-dataset_path = "/home/jovyan/data/fashion"
-model_path = "/home/jovyan/model"
-model_version = "1"
+DATASET_PATH = "/home/jovyan/data/fashion"
+DATA_ONLINE_URL = "https://docs.daocloud.io/fashion-mnist-data.zip"
+MODEL_PATH = "/home/jovyan/model"
+MODEL_VERSION = "1"
 
 is_output_checkpoint = (
     os.getenv("OUTPUT_CHECKPOINT").strip() == "1"
@@ -24,7 +29,84 @@ is_output_checkpoint = (
 )
 
 
+class DatasetManager:
+    def __init__(self, data_path, model_path, online_url):
+        self.dataset_path = data_path
+        self.model_path = model_path
+        self.data_online_url = online_url
+
+    def ensure_dataset(self):
+        if self.check_dataset():
+            print(f"数据集已存在于 {self.dataset_path}，将直接使用。")
+        else:
+            print(f"数据集不存在于 {self.dataset_path}，开始在线下载。")
+            self.download_data()
+        return self.dataset_path
+
+    def check_dataset(self):
+        if os.path.exists(self.dataset_path):
+            files = os.listdir(self.dataset_path)
+            if files:
+                print(f"数据集目录 {self.dataset_path} 存在并包含文件。")
+                return True
+            else:
+                print(f"警告：数据集目录 {self.dataset_path} 存在但为空。")
+        else:
+            print(f"数据集目录 {self.dataset_path} 不存在。")
+        return False
+
+    def download_data(self):
+        try:
+            print(f"正在从 {self.data_online_url} 下载数据...")
+            response = requests.get(self.data_online_url)
+            response.raise_for_status()
+
+            with ZipFile(BytesIO(response.content)) as zip_file:
+                file_names = zip_file.namelist()
+                if file_names:
+                    dataset_folder = file_names[0].split("/")[0]
+                    extract_path = os.path.dirname(os.getcwd())
+                    zip_file.extractall(extract_path)
+
+                    # 更新数据集路径为解压后的目录
+                    self.dataset_path = os.path.join(extract_path, dataset_folder)
+                    print(
+                        f"数据下载并解压成功。数据集路径已更新为: {self.dataset_path}"
+                    )
+                else:
+                    print("错误：ZIP 文件似乎是空的。")
+        except requests.exceptions.RequestException as e:
+            print(f"下载数据时出错: {e}")
+        except zipfile.BadZipFile:
+            print("错误：下载的文件不是有效的 ZIP 文件。")
+
+    def ensure_model(self):
+        if os.path.exists(self.model_path):
+            print(f"模型路径 {self.model_path} 已存在。")
+        else:
+            print(
+                f"模型路径 {self.model_path} 不存在，将在当前目录创建 'model' 文件夹。"
+            )
+            self.model_path = os.path.join(os.getcwd(), "model")
+            os.makedirs(self.model_path, exist_ok=True)
+            print(f"新的模型路径已创建：{self.model_path}")
+        return self.model_path
+
+    def get_path(self):
+        return self.dataset_path
+
+
 def load_data(data_folder):
+    """
+    Loads the dataset from the specified folder.
+
+    Args:
+        data_folder (str): The path to the folder containing the dataset files.
+
+    Returns:
+        tuple: A tuple containing the training and test datasets.
+    """
+
     files = [
         "train-labels-idx1-ubyte.gz",
         "train-images-idx3-ubyte.gz",
@@ -53,9 +135,27 @@ def load_data(data_folder):
 
 
 def train():
+    """
+    Trains a neural network model on the Fashion MNIST dataset.
+
+    This function performs the following steps:
+    1. Loads the training and test datasets.
+    2. Scales the image pixel values to the range [0.0, 1.0].
+    3. Reshapes the training images for input into the model.
+    4. Defines and compiles a neural network model.
+    5. Trains the model on the training data.
+    6. Evaluates the model on the test data.
+    7. Saves the trained model and logs.
+
+    Returns:
+        None
+    """
+
     # load data
+    data_manager = DatasetManager(DATASET_PATH, MODEL_PATH, DATA_ONLINE_URL)
+    final_dataset_path = data_manager.ensure_dataset()
     (train_images, train_labels), (test_images, test_labels) = load_data(
-        "/home/jovyan/data/data/fashion"
+        final_dataset_path
     )
 
     # scale the values to 0.0 to 1.0
@@ -65,19 +165,6 @@ def train():
     # reshape for feeding into the model
     train_images = train_images.reshape(train_images.shape[0], 28, 28, 1)
     test_images = test_images.reshape(test_images.shape[0], 28, 28, 1)
-
-    class_names = [
-        "T-shirt/top",
-        "Trouser",
-        "Pullover",
-        "Dress",
-        "Coat",
-        "Sandal",
-        "Shirt",
-        "Sneaker",
-        "Bag",
-        "Ankle boot",
-    ]
 
     # build the model and train
     model = keras.Sequential(
@@ -97,25 +184,24 @@ def train():
 
     model.summary()
 
-    testing = False
-    epochs = 5
+    epochs = 10
 
     model.compile(
         optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
     )
 
-    export_path = os.path.join("/home/jovyan/model", "model.keras")
+    final_model_path = data_manager.ensure_model()
 
-    logdir = "/home/jovyan/model/train/logs/"
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
+    export_path = os.path.join(final_model_path, "model.keras")
+    log_path = final_model_path + "/train/logs"
+
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_path)
     checkpoint_path = export_path + ".weights.h5"
     cp_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_path, save_weights_only=True, verbose=1
     )
 
     callbacks = [tensorboard_callback]
-
-    print("is_output_model: {}".format(os.environ.get("is_output_model")))
 
     if is_output_checkpoint:
         callbacks.append(cp_callback)
