@@ -2,6 +2,7 @@ import os
 import json
 import tensorflow as tf
 
+
 class SimpleModel(tf.keras.Model):
     def __init__(self):
         super(SimpleModel, self).__init__()
@@ -9,6 +10,7 @@ class SimpleModel(tf.keras.Model):
 
     def call(self, x):
         return self.fc(x)
+
 
 def train():
     # 打印环境信息
@@ -18,15 +20,15 @@ def train():
         print(f"GPU device count: {len(tf.config.list_physical_devices('GPU'))}")
 
     # 获取分布式训练信息
-    tf_config = json.loads(os.environ.get('TF_CONFIG') or '{}')
-    task_type = tf_config.get('task', {}).get('type')
-    task_id = tf_config.get('task', {}).get('index')
+    tf_config = json.loads(os.environ.get("TF_CONFIG") or "{}")
+    task_type = tf_config.get("task", {}).get("type")
+    task_id = tf_config.get("task", {}).get("index")
 
     print(f"Task type: {task_type}, Task ID: {task_id}")
 
     # 设置分布式策略
     strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
-    
+
     with strategy.scope():
         model = SimpleModel()
         loss_fn = tf.keras.losses.MeanSquaredError()
@@ -47,8 +49,9 @@ def train():
 
     for epoch in range(10):
         loss = train_step(data, labels)
-        if task_type == 'chief':
-            print(f'Epoch {epoch}, Loss: {loss.numpy():.4f}')
+        if task_type == "chief":
+            print(f"Epoch {epoch}, Loss: {loss.numpy():.4f}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     train()
