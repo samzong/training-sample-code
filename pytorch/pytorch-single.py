@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+
 # 定义一个简单的神经网络
 class SimpleNet(nn.Module):
     def __init__(self):
@@ -10,6 +11,7 @@ class SimpleNet(nn.Module):
 
     def forward(self, x):
         return self.fc(x)
+
 
 # 创建模型、损失函数和优化器
 model = SimpleNet()
@@ -25,13 +27,13 @@ for epoch in range(100):
     # 前向传播
     outputs = model(x)
     loss = criterion(outputs, y)
-    
+
     # 反向传播和优化
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
-    
-    if (epoch + 1) % 10 == 0:
-        print(f'Epoch [{epoch+1}/100], Loss: {loss.item():.4f}')
 
-print('Training finished.')
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch [{epoch+1}/100], Loss: {loss.item():.4f}")
+
+print("Training finished.")
