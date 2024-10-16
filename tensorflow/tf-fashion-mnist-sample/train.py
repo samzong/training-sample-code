@@ -65,7 +65,7 @@ class DatasetManager:
                 file_names = zip_file.namelist()
                 if file_names:
                     dataset_folder = file_names[0].split("/")[0]
-                    extract_path = os.path.dirname(os.getcwd())
+                    extract_path = os.getcwd()
                     zip_file.extractall(extract_path)
 
                     # 更新数据集路径为解压后的目录
