@@ -1,0 +1,44 @@
+apiVersion: kubeflow.org/v1
+kind: MPIJob
+metadata:
+  name: fashion-mnist-horovod
+spec:
+  slotsPerWorker: 1
+  cleanPodPolicy: None
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          containers:
+            - name: launcher
+              image: your-docker-registry/horovod-tensorflow:latest
+              command:
+                - mpirun
+                - -np
+                - "4"
+                - -bind-to
+                - none
+                - -map-by
+                - slot
+                - -x
+                - NCCL_DEBUG=INFO
+                - -x
+                - LD_LIBRARY_PATH
+                - -x
+                - PATH
+                - python
+                - /opt/train.py
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
+    Worker:
+      replicas: 4
+      template:
+        spec:
+          containers:
+            - name: worker
+              image: your-docker-registry/horovod-tensorflow:latest
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
