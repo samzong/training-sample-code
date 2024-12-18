@@ -1,0 +1,65 @@
+apiVersion: kubeflow.org/v1
+kind: PyTorchJob
+metadata:
+  name: qwen-7b-training
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      template:
+        spec:
+          containers:
+            - name: pytorch
+              image: pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime # 使用标准 PyTorch 镜像
+              resources:
+                requests:
+                  cpu: "4"
+                  memory: "16Gi"
+                limits:
+                  cpu: "8"
+                  memory: "32Gi"
+              volumeMounts:
+                - mountPath: /mnt/data # 挂载数据卷
+                  name: data-volume
+                - mountPath: /mnt/model # 挂载模型路径
+                  name: model-volume
+                - mountPath: /mnt/checkpoints # 挂载 checkpoint 保存路径
+                  name: checkpoint-volume
+                - mountPath: /mnt/final_model # 挂载最终模型保存路径
+                  name: final-model-volume
+          volumes:
+            - name: data-volume
+              persistentVolumeClaim:
+                claimName: your-pvc-name # 替换为实际 PVC 名称
+            - name: model-volume
+              persistentVolumeClaim:
+                claimName: model-pvc # 替换为实际模型 PVC 名称
+            - name: checkpoint-volume
+              persistentVolumeClaim:
+                claimName: checkpoint-pvc # 替换为实际 checkpoint PVC 名称
+            - name: final-model-volume
+              persistentVolumeClaim:
+                claimName: final-model-pvc # 替换为最终模型 PVC 名称
+    Worker:
+      replicas: 4
+      template:
+        spec:
+          containers:
+            - name: pytorch
+              image: pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime # 使用标准 PyTorch 镜像
+              resources:
+                requests:
+                  cpu: "4"
+                  memory: "16Gi"
+                limits:
+                  cpu: "8"
+                  memory: "32Gi"
+              volumeMounts:
+                - mountPath: /mnt/data # 挂载数据卷
+                  name: data-volume
+                - mountPath: /mnt/model # 挂载模型路径
+                  name: model-volume
+                - mountPath: /mnt/checkpoints # 挂载 checkpoint 保存路径
+                  name: checkpoint-volume
+                - mountPath: /mnt/final_model # 挂载最终模型保存路径
+                  name: final-model-volume
