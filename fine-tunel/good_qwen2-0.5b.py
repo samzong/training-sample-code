@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = os.getenv('MODEL_PATH', 'Qwen/Qwen2-0.5B')  # 模型路径
 OUTPUT_DIR = os.getenv('OUTPUT_DIR', './output')  # 输出目录
 BATCH_SIZE = int(os.getenv('BATCH_SIZE', '2'))  # 批次大小
-NUM_EPOCHS = int(os.getenv('NUM_EPOCHS', '1'))  # 训练轮次
+NUM_EPOCHS = int(os.getenv('NUM_EPOCHS', '5'))  # 训练轮次
 LEARNING_RATE = float(os.getenv('LEARNING_RATE', '5e-5'))  # 学习率
 TRAIN_FILE = os.getenv('TRAIN_FILE', '')  # 训练数据文件路径
 VAL_FILE = os.getenv('VAL_FILE', '')  # 验证数据文件路径
@@ -83,33 +83,9 @@ def generate_sample_data():
         'validation': Dataset.from_dict(val_data)
     })
 
-def setup_tokenizer(tokenizer, model_name):
-    """设置tokenizer的特殊标记"""
-    logger.info("Setting up tokenizer special tokens...")
-    
-    # 根据模型类型进行不同的设置
-    if "qwen2" in model_name.lower():
-        logger.info("Detected Qwen2 model, using default tokenizer settings")
-        return tokenizer
-    elif "qwen" in model_name.lower():
-        # Qwen-7B 等模型需要特殊处理
-        logger.info("Detected Qwen model, setting up special tokens")
-        if tokenizer.pad_token is None:
-            logger.info("Setting pad_token to eos_token")
-            tokenizer.pad_token = tokenizer.eos_token
-    else:
-        logger.warning(f"Unknown model type: {model_name}, using default settings")
-    
-    return tokenizer
-
 class TextDataset(Dataset):
-    def __init__(self, texts, tokenizer, model_name, max_length=512):
-        # 根据模型类型进行不同的处理
-        if "qwen2" not in model_name.lower():
-            # 对于 Qwen-7B 等模型，确保有 pad_token
-            if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
-        
+    """数据集类"""
+    def __init__(self, texts, tokenizer, max_length=512):
         self.encodings = tokenizer(
             texts,
             padding=True,
@@ -144,28 +120,19 @@ def setup_training_environment():
 
 def is_local_path(path):
     """判断是否为本地路径"""
-    # 检查是否为绝对路径或相对路径
-    return os.path.isabs(path) or path.startswith('./') or path.startswith('../')
+    return os.path.exists(path) and os.path.isdir(path)
 
 def load_model_and_tokenizer(model_path):
     """加载模型和分词器"""
     logger.info(f"Loading model from: {model_path}")
     
-    # 获取模型名称（用于判断模型类型）
-    model_name = os.path.basename(model_path) if is_local_path(model_path) else model_path
-    
     # 判断是否为本地路径
     if is_local_path(model_path):
-        abs_path = os.path.abspath(model_path)
-        if not os.path.exists(abs_path):
-            raise ValueError(f"Model path does not exist: {abs_path}")
-        
-        logger.info(f"Loading from local directory: {abs_path}")
+        logger.info("Loading from local directory...")
         kwargs = {
             "local_files_only": True,
             "trust_remote_code": True
         }
-        model_path = abs_path
     else:
         logger.info("Loading from Hugging Face hub...")
         kwargs = {
@@ -174,9 +141,7 @@ def load_model_and_tokenizer(model_path):
     
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_path, **kwargs)
-        # 设置tokenizer的特殊标记
-        tokenizer = setup_tokenizer(tokenizer, model_name)
-        return tokenizer, model_name
+        return tokenizer
     except Exception as e:
         logger.error(f"Error loading tokenizer: {e}")
         raise
@@ -189,7 +154,7 @@ def train():
     torch.cuda.empty_cache()
     
     # 初始化模型和tokenizer
-    tokenizer, model_name = load_model_and_tokenizer(MODEL_PATH)
+    tokenizer = load_model_and_tokenizer(MODEL_PATH)
     
     # 根据环境选择模型配置
     model_kwargs = {
@@ -197,34 +162,24 @@ def train():
         "local_files_only": is_local_path(MODEL_PATH)
     }
     
-    # 确保使用正确的模型路径
-    model_path = os.path.abspath(MODEL_PATH) if is_local_path(MODEL_PATH) else MODEL_PATH
-    
-    # 根据模型类型选择不同的配置
     if is_distributed():
         model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.float16,
+            MODEL_PATH,
+            torch_dtype=torch.float16,  # 分布式训练使用 FP16
             **model_kwargs
         )
     else:
         model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.float32,
+            MODEL_PATH,
+            torch_dtype=torch.float32,  # 单机训练使用 FP32
             device_map="auto",
             **model_kwargs
         )
-    
-    # 根据模型类型设置 pad_token_id
-    if "qwen2" not in model_name.lower():
-        if model.config.pad_token_id is None:
-            model.config.pad_token_id = tokenizer.pad_token_id
-            logger.info(f"Set model pad_token_id to {model.config.pad_token_id}")
 
     # 准备数据
     dataset = generate_sample_data()
-    train_dataset = TextDataset(dataset['train']['text'], tokenizer, model_name)
-    val_dataset = TextDataset(dataset['validation']['text'], tokenizer, model_name)
+    train_dataset = TextDataset(dataset['train']['text'], tokenizer)
+    val_dataset = TextDataset(dataset['validation']['text'], tokenizer)
     del dataset
 
     # 创建数据加载器

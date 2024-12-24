@@ -1,0 +1,36 @@
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: qwen-training
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        spec:
+          containers:
+            - name: pytorch
+              image: your-docker-image  # 需要替换为您的训练镜像
+              command:
+                - "deepspeed"
+                - "--num_gpus=1"
+                - "ft_qwen-7b.py"
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
+    Worker:
+      replicas: 4
+      restartPolicy: OnFailure
+      template:
+        spec:
+          containers:
+            - name: pytorch
+              image: your-docker-image  # 需要替换为您的训练镜像
+              command:
+                - "deepspeed"
+                - "--num_gpus=1"
+                - "ft_qwen-7b.py"
+              resources:
+                limits:
+                  nvidia.com/gpu: 1 
