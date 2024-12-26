@@ -1,0 +1,162 @@
+apiVersion: kubeflow.org/v1
+kind: PyTorchJob
+metadata:
+  annotations:
+    baize.io/description: ""
+  labels:
+    jobs.baize.io/training-mode: DISTRIBUTED
+    kueue.x-k8s.io/queue-name: qwen2-0dot5b
+  name: qwen2
+  namespace: ft-qwen-7b
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: Never
+      template:
+        metadata:
+          labels:
+            kcover.io/cascading-recovery: "true"
+        spec:
+          affinity: {}
+          containers:
+            - workingDir: "/home/jovyan/fine-tunel"
+              args:
+                - |
+                  sed -i 's/"train_batch_size": 8/"train_batch_size": 16/g' /home/jovyan/fine-tunel/ds_config.json && \
+                  python /home/jovyan/fine-tunel/qwen.py
+              command:
+                - /bin/bash
+                - "-c"
+              env:
+                - name: BATCH_SIZE
+                  value: "4"
+                - name: WORLD_SIZE
+                  value: "2"
+                - name: NUM_EPOCHS
+                  value: "2"
+                - name: OUTPUT_DIR
+                  value: /home/jovyan/fine-tunel/output
+                - name: CUDA_LAUNCH_BLOCKING
+                  value: "1"
+                - name: MASTER_PORT
+                  value: "29500"
+                - name: MASTER_ADDR
+                  value: "$(QWEN_MASTER_0_ADDR)"
+                - name: RANK
+                  value: "0"
+                - name: LOCAL_RANK
+                  value: "0"
+                - name: NCCL_DEBUG
+                  value: "INFO"
+              image: release.daocloud.io/baize/jupyter-scipy:v1.9.0-baize-Qwen2
+              name: pytorch
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: 8Gi
+                  nvidia.com/gpucores: "20"
+                  nvidia.com/gpumem: 12k
+                  nvidia.com/vgpu: "1"
+                requests:
+                  cpu: "4"
+                  memory: 8Gi
+                  nvidia.com/gpucores: "20"
+                  nvidia.com/gpumem: 12k
+                  nvidia.com/vgpu: "1"
+              volumeMounts:
+                - mountPath: /home/jovyan/fine-tunel/output
+                  name: 10000-dataset-qwen2-0dot5b-dataset
+          priorityClassName: baize-medium-priority
+          schedulerName: default-scheduler
+          tolerations:
+            - effect: NoExecute
+              key: node.kubernetes.io/not-ready
+              operator: Exists
+              tolerationSeconds: 300
+            - effect: NoExecute
+              key: node.kubernetes.io/unreachable
+              operator: Exists
+              tolerationSeconds: 300
+          volumes:
+            - name: 10000-dataset-qwen2-0dot5b-dataset
+              persistentVolumeClaim:
+                claimName: qwen2-0dot5b
+    Worker:
+      replicas: 1
+      restartPolicy: Never
+      template:
+        metadata:
+          labels:
+            kcover.io/cascading-recovery: "true"
+          annotations:
+            worker-rank: "$(RANK_OFFSET)"
+        spec:
+          affinity: {}
+          containers:
+            - workingDir: "/home/jovyan/fine-tunel"
+              args:
+                - |
+                  sed -i 's/"train_batch_size": 8/"train_batch_size": 16/g' /home/jovyan/fine-tunel/ds_config.json && \
+                  python /home/jovyan/fine-tunel/qwen.py
+              command:
+                - /bin/bash
+                - "-c"
+              env:
+                - name: BATCH_SIZE
+                  value: "4"
+                - name: WORLD_SIZE
+                  value: "2"
+                - name: NUM_EPOCHS
+                  value: "2"
+                - name: OUTPUT_DIR
+                  value: /home/jovyan/fine-tunel/output
+                - name: CUDA_LAUNCH_BLOCKING
+                  value: "1"
+                - name: MASTER_PORT
+                  value: "29500"
+                - name: MASTER_ADDR
+                  value: "$(QWEN_MASTER_0_ADDR)"
+                - name: RANK
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.annotations['worker-rank']
+                - name: LOCAL_RANK
+                  value: "0"
+                - name: NCCL_DEBUG
+                  value: "INFO"
+              image: release.daocloud.io/baize/jupyter-scipy:v1.9.0-baize-Qwen2
+              name: pytorch
+              resources:
+                limits:
+                  cpu: "4"
+                  memory: 8Gi
+                  nvidia.com/gpucores: "20"
+                  nvidia.com/gpumem: 12k
+                  nvidia.com/vgpu: "1"
+                requests:
+                  cpu: "4"
+                  memory: 8Gi
+                  nvidia.com/gpucores: "20"
+                  nvidia.com/gpumem: 12k
+                  nvidia.com/vgpu: "1"
+              volumeMounts:
+                - mountPath: /home/jovyan/fine-tunel/output
+                  name: 10000-dataset-qwen2-0dot5b-dataset
+          priorityClassName: baize-medium-priority
+          schedulerName: default-scheduler
+          tolerations:
+            - effect: NoExecute
+              key: node.kubernetes.io/not-ready
+              operator: Exists
+              tolerationSeconds: 300
+            - effect: NoExecute
+              key: node.kubernetes.io/unreachable
+              operator: Exists
+              tolerationSeconds: 300
+          volumes:
+            - name: 10000-dataset-qwen2-0dot5b-dataset
+              persistentVolumeClaim:
+                claimName: qwen2-0dot5b
+  runPolicy:
+    suspend: false
