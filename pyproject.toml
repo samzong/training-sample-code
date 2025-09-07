@@ -1,14 +1,11 @@
-[tool.poetry]
+[project]
 name = "training-sample-code"
 version = "0.1.0"
 description = ""
-authors = ["samzong.lu <samzong.lu@gmail.com>"]
+authors = [{ name = "samzong.lu", email = "samzong.lu@gmail.com" }]
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.11"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.3.2",
+    "swanlab>=0.6.8",
+]
